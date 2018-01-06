@@ -60,7 +60,7 @@ Merkle Proof-Of-Burn
 
 Review Systems, Blacklists, Verifiable information-free Pings
 
-## Compressed Utility Function
+## Consumer Utility Function
 
 In order to offer the best possible service to a bandwidth consumer and to accurately propagate market information, it is necessary to accurately capture the consumer's utility function. In order to make this efficient to communicate and optimize for, we make several reasonable assumptions about the consumer's utility function on bandwidth offers.
 
@@ -93,77 +93,63 @@ Some representative examples of tolerable conditions include:
 Based on this rationale, the utility function is parametrized by 8 numbers:
 
 * $C_B$: Center bandwidth: The bandwidth (unit: bits per second) at which you are willing to pay 50% of maximum.
-* $P_B$: Bandwidth selectivity: If your selectivity (unit: dimensionless) is high, there's a particular bandwidth at which the connection suddenly becomes useful and you really don't care at all beyond that. If your selectivity is low, there's a broad range of bandwidths at which the connection is useful, and you have a mild preference for higher bandwidths.
+* $S_B$: Bandwidth selectivity: If your selectivity (unit: dimensionless) is high, there's a particular bandwidth at which the connection suddenly becomes useful and you really don't care at all beyond that. If your selectivity is low, there's a broad range of bandwidths at which the connection is useful, and you have a mild preference for higher bandwidths. A negative selectivity implies higher values are better.
 * $C_L$: Center latency: The average latency (unit: seconds) at which you are willing to pay 50% of maximum.
-* $P_L$: Latency selectivity: How gradual your latency requirements are.
+* $S_L$: Latency selectivity: How gradual your latency requirements are.
 * $C_D$: Center latency deviation: The latency standard deviation (unit: seconds) at which you are willing to pay 50% of maximum.
-* $P_D$: Deviation selectivity: How strict your latency bounds are. This will be highest for hard-real-time applications.
+* $S_D$: Deviation selectivity: How strict your latency bounds are. This will be highest for hard-real-time applications.
 * $C_P$: Center packet loss: The packet loss (unit: dimensionless) at which you are willing to pay 50% of maximum.
-* $P_P$: Packet loss selectivity: How strict your packet loss bounds are. Will typically be higher for real-time application where retransmits are expensive, like video games.
+* $S_P$: Packet loss selectivity: How strict your packet loss bounds are. Will typically be higher for real-time application where retransmits are expensive, like video games.
 
-The smallest bandwidth supported ($B_{min}$) is $0.001$ bits/sec. The largest bandwidth supported ($B_{max}$) is $10^{24}$ bits/sec. (This protocol is intended to be future-proof and to serve bulk applications, and having wide margins allows for better optimization algorithm behavior towards the edges.)
-
-The shortest latency supported ($L_{min}$) is $1$ nanosecond. The longest latency supported  ($L_{max}$)is $10^{10}$ seconds. (In case anyone wants to use the protocol for deep-space purposes.)
-
-The lowest latency standard deviation supported  ($D_{min}$) is $0.1$ nanoseconds. The largest latency standard deviation supported ($D_{max}$) is $10^9$ seconds.
-
-The lowest packet loss supported ($P_{min}$) is $10^{-30}$. The highest packet loss supported ($P_{max}$) is 1 (i.e. all packets lost).
-
-The highest selectivity supported in all categories ($S_{max}$) is 1000 (effectively a hard cut-off). The smallest selectivity supported ($S_{min}$) is $0.1$ (little selectivity across many orders of magnitude).
-
-The following equations can be re-expressed in a number of ways. I chose the way that (I hope) best matches the justification I gave above. You will notice some obvious simplifications; these simplifications may be followed in implementation, but may make the equations harder to understand.
-
-Total utility, which maps from bandwidth $b \in [B_{min}, B_{max}]$, latency $l \in [L_{min}, L_{max}]$, latency deviation $d \in [D_{min}, D_{max}]$, and packet loss $p \in [P_{min}, P_{max}]$ to $[0,1)$ is defined as:
+The utility function is defined as follows:
 
 $$U(b,l,d,p) = U_B(b) U_L(l) U_D(d) U_P(p)$$
 
-Bandwidth utility:
+Individual utilities:
 
-$$U_B(b) = \frac{1}{1+e^{-P(ln(b/B_{min})-ln(C/B_{min}))}}$$
+$$U_N(x) = \frac{1}{1+(\frac{x}{C_N})^{S_N}}$$
 
-Bandwidth selectivity: 
+Each individual utility function forms a sigmoid on a graph of price-vs-x where the x axis is spaced logarithmically, as we wanted.
 
-$$P = S_{min} * \Big(\frac{S_{max}}{S_{min}}\Big)^{P_B}$$
+### Utility Function Compression
 
-Bandwidth center: 
+The utility function described above is elegant and easy to compute. Some special consideration is due as the inputs to the function can span many orders of magnitude; for example, both 10kbps and 10Gbps connections are reasonably common at the time of writing (depending on what kind of machines you're working with). Even common consumer devices like cell phones regularly experience bandwidth changes by factors of thousands.
 
-$$C = B_{min} * \Big(\frac{B_{max}}{B_{min}}\Big)^{C_B}$$
+To accomodate this fact, we can represent physical values (bandwidth, time, etc.) logarithmically rather than linearly. For each physical quantity (bandwidth, latency, latency deviation, packet loss percentage) we pick a (mostly arbitrary) value that corresponds to a logarithm of 0 and an (also mostly arbitrary) value that corresponds to a logarithm of 1. For reasons that will become clear shortly, I will arbitrarily prescribe the following values:
 
-Simplified: $\frac{1}{\frac{C}{b}^P + 1}$.
+For bandwidth, $B_0 = 10^{-3} \frac{b}{s}$ and $B_1 = 10^{24} \frac{b}{s}$. 
 
-Notice the exponent's sign is negative, indicating larger values are better.
+For latency, $L_0 = 10^{-9} s$ and $L_1 = 10^{10} s$. 
 
-Latency utility:
+For latency deviation, $D_0 = 10^{-10} s$ and $D_1 = 10^{11} s$. 
 
-$$U_L(l) = \frac{1}{1+e^{P(ln(l/L_{min})-ln(C/L_{min}))}}$$
-$$P = S_{min} * \Big(\frac{S_{max}}{S_{min}}\Big)^{P_L}$$
-$$C = L_{min} * \Big(\frac{L_{max}}{L_{min}}\Big)^{C_L}$$
+For packet loss, $D_0 = 10^{-30}$ and $D_1 = 1$. 
 
+For selectivity, $S_0 = 0.1$ and $S_1 = 1000$.
 
-Notice the exponent's sign is positive, indicating smaller values are better.
+For any physical quantity $Q$, $exp_Q(x) = Q_0 * (\frac{Q_1}{Q_0})^x$.
 
-Latency deviation utility:
+$exp_Q$ has the convenient property that it maps values in the range $[0,1)$ to realistic physical values without any large gaps.
 
-$$U_D(d) = \frac{1}{1+e^{P(ln(d/D_{min})-ln(C/D_{min}))}}$$
-$$P = S_{min} * \Big(\frac{S_{max}}{S_{min}}\Big)^{P_D}$$
-$$C = D_{min} * \Big(\frac{D_{max}}{D_{min}}\Big)^{C_D}$$
+Therefore, we can represent any realistic bandwidth, latency, deviation, or packet loss to extremely high precision with a single value in the range $[0,1)$. This is straightforwardly represented by a Q0.32 unsigned fixed-point binary number.
 
+If we weren't to use this logarithmic representation and instead were to use e.g. an integer corresponding to the number of bits per second, we would either have to use a huge integer (to capture values as large as $10^{24}$) or have abysmal accuracy towards the smaller end of admissible values. On the other hand, using this logarithmic representation gives us excellent accuracy across the entire range of physically realistic values.
 
-Packet loss utility:
+Using this technique, we can represent our entire utility function to extremely high accuracy using 8 32-bit fixed-point numbers ($C/S_{B/L/D/B}$) and the connection characteristics using 4 32-bit fixed-point numbers ($b/l/d/b$). 
 
-$$U_P(p) = \frac{1}{1+e^{-P(ln(p/P_{min})-ln(C/P_{min}))}}$$
-$$P = S_{min} * \Big(\frac{S_{max}}{S_{min}}\Big)^{P_P}$$
-$$C = P_{min} * \Big(\frac{P_{max}}{P_{min}}\Big)^{C_P}$$
-
-Note that the cost doesn't actually show up anywhere in these equations. This is due to assumption 1, which implies that we only have to define the *relative* utility of different connection options. 
-
-
-
-
-We can "compress" this utility function by packing each of $C_B, P_B, C_L, P_L, C_D, P_D, C_P, P_P$ into a small (say, 16-bit) unsigned integer, representing a fixed-point value in $[0,1)$. Because of the structure of our equations, the density of the functions as generated by $C/P_{B/L/D/P}$ is well-distributed in log-space and we don't "waste" any bits.
-
+A dimensionally-checked reference implementation in Haskell (with equational transformations informally verified in Coq over the reals) is available at <add link>
 
 
 ## Government Bandwidth Sales
+
+This protocol is designed to help the market remove inefficiencies in bandwidth allocation. However, it can only do so much in the presence of a pessimizing legal framework.
+
+The situation is particularly bad in the case of wireless bandwidth allocations. However, I beleive that with only a minimal amount of work, radio frequency regulatory bodies could vastly improve the efficiency of wireless bandwidth allocation.
+
+Right now, bandwidth is sold in huge chunks to small groups of bidders, and only very infrequently. This is obviously not an effective mechanism for communicating market information, and it shows; there is almost no competition in the wireless carrier market due to this legal framework, and customer satisfaction with wireless carriers is extremely low.
+
+If RF regulatory bodies (for example, the FCC) were instead to automatically run frequent regional bandwidth auctions (on the scale of miles, minutes, and megahertz), small enterprises could (using this protocol) efficiently sell bandwidth to local consumers. Anyone could efficiently determine the current going rate of data in an area, figure out how much it would cost for them to do better, and make decisions accordingly.
+
+
 
 ## FTRs

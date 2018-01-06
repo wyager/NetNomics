@@ -19,6 +19,6 @@ library
   exposed-modules:     NetNomics   
   -- other-modules:       
   -- other-extensions:    
-  build-depends:       base, dimensional
+  build-depends:       base, dimensional, cereal, bytestring
   hs-source-dirs:      src
   default-language:    Haskell2010
