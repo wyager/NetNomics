@@ -1,8 +1,8 @@
-# NetNomics
-
-## A protocol for negotiating network payments
-
-### William Yager
+---
+title: 'NetNomics: A Protocol for Bandwidth Markets'
+author:
+- William Yager
+---
 
 ## Motivation
 
@@ -50,15 +50,51 @@ The consumer, Carol, has a (possibly ephemeral) assymetric keypair $P_C$ (public
 
 10. When Carol is running low on bandwidth, go back to step 8.
 
+## Mutual Interactive Penance
+
+In order to make it economically unfavorable for parties to defraud their counterparties, we make entering into a transaction slightly more expensive than the maximum financial exposure of either party during the transaction.
+
+To do so, we choose some challenge-response proof-of-work algorithm parametrized over a difficulty. Carol and Patrick issue each other random challenges. Both solve the proof-of-work algorithm at a low difficulty and respond with a solution. Carol and Patrick now repeat this process, but with a higher difficulty. This continues several times until Carol and Patrick have both invested a sufficiently large (expected) amount of computational effort.
+
+The chosen proof-of-work algorithm should not be solvable at substantially lower cost on custom hardware. 
+
 ## Verifiable Reputation Indicators
+
+The goal of a Verifiable Reputation Indicator is to trustlessly prove some form of credit-worthiness to a counterparty. In other words, you want to prove to someone you don't know that you won't try to scam them. Some techniques for doing so are described here.
 
 ### Non-Interactive Reputation Indicators
 
-Merkle Proof-Of-Burn
+These are Reputation Indicators that don't require any communication with the outside world. These are primarily useful to the person purchasing bandwidth, as they allow them to check the credit-worthiness of the bandwidth merchant before they've been connected to the outside world.
+
+#### Merkle Proof-Of-Burn
+
+The general approach is based on SPV, or "Simplified Payment Verification" as described by Nakamoto in the original Bitcoin whitepaper.
+
+To demonstrate creditworthiness, Patrick creates a Bitcoin transaction that provably "destroys" the Bitcoins and is uniquely linked to $P_P$. For example, Patrick could create an OP_RETURN transaction containing the hash of $P_P$ with some non-trivial amount of Bitcoin as input. Patrick would permanently lose the Bitcoins, and this transaction would be linked to him uniquely.
+
+If Patrick ever attempts to scam Carol, she can blacklist Patrick by his pubkey. Patrick can never scam Carol again without burning more Bitcoins. When Carol gets internet access, she can publish a bad review associated with Patrick's pubkey, and Patrick's reputation (which he paid at least some amount of money for) is tarnished for those people who trust Carol. This is essential to the usefulness of several Interactive Reputation Indicators discussed later.
+
+This is non-interactive because, using SPV, Patrick can prove to Carol (to a high degree of confidence) that he made such a transaction by giving Carol only a small amount of data; there is no need for a full connection to the Bitcoin network.
 
 ### Interactive Reputation Indicators
 
-Review Systems, Blacklists, Verifiable information-free Pings
+These are evidence of credit-worthiness that require a (limited) connection to the outside world. 
+
+#### Review Systems
+
+Just as now, vendors would be subject to public review. Vendor identities would be tied to their public keys. Review systems could either be highly centralized and curated (as they are now) or more decentralized and automated (a la web-of-trust).
+
+#### Blacklists
+
+Curated blacklists of bad nodes (as we have now for web domains that serve malware) would require scammy vendors to continually change their identity, at great expense.
+
+#### Verifiable Information-Free Pings
+
+In order to test the (claimed) network properties of a connection, a consumer needs to be able to send something through the network. However, vendors don't want unscrupulous consumers to abuse this feature and send data without paying. (This has happened in real life with users tunneling traffic over ICMP to avoid paying for network access.)
+
+The general protocol is as follows:
+
+<stuff here>
 
 ## Consumer Utility Function
 
@@ -148,8 +184,4 @@ The situation is particularly bad in the case of wireless bandwidth allocations.
 
 Right now, bandwidth is sold in huge chunks to small groups of bidders, and only very infrequently. This is obviously not an effective mechanism for communicating market information, and it shows; there is almost no competition in the wireless carrier market due to this legal framework, and customer satisfaction with wireless carriers is extremely low.
 
-If RF regulatory bodies (for example, the FCC) were instead to automatically run frequent regional bandwidth auctions (on the scale of miles, minutes, and megahertz), small enterprises could (using this protocol) efficiently sell bandwidth to local consumers. Anyone could efficiently determine the current going rate of data in an area, figure out how much it would cost for them to do better, and make decisions accordingly.
-
-
-
-## FTRs
+If RF regulatory bodies (for example, the FCC) were instead to automatically run frequent regional bandwidth auctions (on the scale of miles, minutes, and megahertz), small enterprises could (using this protocol) efficiently sell bandwidth to local consumers. Anyone could efficiently determine the current going rate of data in an area, figure out how much it would cost for them to do better, and make decisions accordingly. For example, an individual could easily determine if it would make them money (and, by fairly direct reasoning, optimize bandwidth allocation) to get easements to run a fiber line or configure a microwave link to a neighboring town.
