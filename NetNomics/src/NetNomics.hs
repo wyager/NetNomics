@@ -9,6 +9,7 @@ import Numeric.Units.Dimensional.Prelude
 
 type DBandwidth = DAmountOfSubstance / DTime
 -- Dimensional doesn't have "bit" as a primitive unit so we're using moles as bits.
+bit :: Num a => Unit 'Metric DAmountOfSubstance a
 bit = mole
 
 data Preference (unit :: Dimension) num = Preference {
@@ -16,16 +17,15 @@ data Preference (unit :: Dimension) num = Preference {
         selectivity :: Quantity DOne num
     } 
 
-singleUtility :: Floating num => Direction -> Preference unit num -> Quantity unit num -> Dimensionless num
-singleUtility direction (Preference center selectivity) value = _1 / (_1 + exponent)
-    where 
-    exponent = (value / center) ** (signOf direction * selectivity)
-
 data Direction = PreferBigger | PreferSmaller
 
 signOf :: Num num => Direction -> Dimensionless num
 signOf PreferBigger = negate _1
 signOf PreferSmaller = _1
+
+singleUtility :: Floating num => Direction -> Preference unit num -> Quantity unit num -> Dimensionless num
+singleUtility direction (Preference prefCenter prefSelectivity) value 
+    = (_1 /) $ (_1 +) $ (value / prefCenter) ** (signOf direction * prefSelectivity)
 
 data Preferences num = Preferences {
         bandwidthPreference :: Preference DBandwidth num,
@@ -54,8 +54,8 @@ mkConnectionDetails :: Double -> Double -> Double -> Double -> ConnectionDetails
 mkConnectionDetails b l d p = ConnectionDetails {
         bandwidth = (b *~ (bit / second)),
         latency = (l *~ second),
-        deviation = (b *~ second),
-        packetLoss =  (b *~ one)
+        deviation = (d *~ second),
+        packetLoss =  (p *~ one)
     }
 
 mkPreferences :: Double -> Double 

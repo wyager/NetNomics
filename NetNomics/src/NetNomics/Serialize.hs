@@ -8,7 +8,6 @@ module NetNomics.Serialize (
 import qualified Prelude as P
 
 import Numeric.Units.Dimensional.Prelude
-import Numeric.Units.Dimensional.Coercion (Dimensional(Quantity))
 
 import Data.Word (Word32)
 import Data.Serialize (Serialize, put, get, putWord32be, getWord32be, encode, decode)
@@ -19,18 +18,18 @@ import NetNomics (ConnectionDetails(..), Preferences(..), Preference(..), DBandw
 -- Tools to compress all the values in the protocol to [0,1)
 
 data Bounds unit num = Bounds {
-        min :: Quantity unit num,
-        max :: Quantity unit num
+        _lo :: Quantity unit num,
+        _hi :: Quantity unit num
     }
 
 -- If this stuff tickles your fancy, read about Lie Groups and their Algebras
 newtype Logarithmic (unit :: Dimension) num = Logarithmic (Dimensionless num) 
 
 exp' :: Floating num => Bounds unit num -> Logarithmic unit num -> Quantity unit num
-exp' (Bounds min max) (Logarithmic x) = min * ((max / min) ** x)
+exp' (Bounds lo hi) (Logarithmic x) = lo * ((hi / lo) ** x)
 
 log' :: Floating num => Bounds unit num -> Quantity unit num -> Logarithmic unit num
-log' (Bounds min max) q = Logarithmic (log (q / min) / log (max / min))
+log' (Bounds lo hi) q = Logarithmic (log (q / lo) / log (hi / lo))
 
 
 bandwidthBounds :: Floating num => Bounds DBandwidth num
@@ -83,17 +82,17 @@ encodeQuantity bounds quantity
             Right fixed -> Right fixed
 
 encodePreference :: Bounds unit Double -> Preference unit Double -> Either QuantityError (Fixed, Fixed)
-encodePreference bounds (Preference center selectivity) = do
-    center <- encodeQuantity bounds center
-    selectivity <- encodeQuantity selectivityBounds selectivity
-    return (center, selectivity)
+encodePreference bounds (Preference prefCenter prefSelectivity) = do
+    prefCenter'      <- encodeQuantity bounds            prefCenter
+    prefSelectivity' <- encodeQuantity selectivityBounds prefSelectivity
+    return (prefCenter', prefSelectivity')
 
 encodePreferences :: Preferences Double -> Either QuantityError (Fixed, Fixed, Fixed, Fixed, Fixed, Fixed, Fixed, Fixed)
 encodePreferences (Preferences b l d p) = do
     (cb, sb) <- encodePreference bandwidthBounds   b
     (cl, sl) <- encodePreference latencyBounds     l
     (cd, sd) <- encodePreference deviationBounds   d
-    (cp, sp) <- encodePreference selectivityBounds p
+    (cp, sp) <- encodePreference packetLossBounds  p
     return (cb, sb, cl, sl, cd, sd, cp, sp)
 
 decodePreferences :: (Fixed, Fixed, Fixed, Fixed, Fixed, Fixed, Fixed, Fixed) -> Preferences Double
@@ -102,7 +101,7 @@ decodePreferences (cb, sb, cl, sl, cd, sd, cp, sp)
         (decodePreference bandwidthBounds   cb sb)
         (decodePreference latencyBounds     cl sl)
         (decodePreference deviationBounds   cd sd)
-        (decodePreference selectivityBounds cp sp)
+        (decodePreference packetLossBounds  cp sp)
 
 decodePreference :: Bounds unit Double -> Fixed -> Fixed -> Preference unit Double
 decodePreference bounds c s = Preference (decodeQuantity bounds c) (decodeQuantity selectivityBounds s)
@@ -119,18 +118,18 @@ deserializePreferences bytes = decodePreferences <$> decode bytes
 
 encodeConnectionDetails :: ConnectionDetails Double -> Either QuantityError (Fixed, Fixed, Fixed, Fixed)
 encodeConnectionDetails (ConnectionDetails b l d p) = do
-    b <- encodeQuantity bandwidthBounds   b
-    l <- encodeQuantity latencyBounds     l
-    d <- encodeQuantity deviationBounds   d
-    p <- encodeQuantity selectivityBounds p
-    return (b,l,d,p)
+    b' <- encodeQuantity bandwidthBounds   b
+    l' <- encodeQuantity latencyBounds     l
+    d' <- encodeQuantity deviationBounds   d
+    p' <- encodeQuantity packetLossBounds  p
+    return (b',l',d',p')
 
 decodeConnectionDetails :: (Fixed, Fixed, Fixed, Fixed) -> ConnectionDetails Double
 decodeConnectionDetails (b,l,d,p) = ConnectionDetails
     (decodeQuantity bandwidthBounds   b)
     (decodeQuantity latencyBounds     l)
     (decodeQuantity deviationBounds   d)
-    (decodeQuantity selectivityBounds p)
+    (decodeQuantity packetLossBounds  p)
 
 serializeConnectionDetails :: ConnectionDetails Double -> Either QuantityError ByteString
 serializeConnectionDetails details = encode <$> encodeConnectionDetails details
